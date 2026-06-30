@@ -3,270 +3,241 @@ export const MONTH_ORDER = ["April","May","June","July","August","September","Oc
 
 // ── STOCK HEAD DETECTION ──
 export function isOpeningStock(row) {
-  const h = (row.HEAD || row.GROUP || "").toLowerCase();
-  return h.includes("opening stock") || h.includes("opening balance") || h.includes("op. stock") || h.includes("op stock");
+  const h = (row.HEAD||row.GROUP||row.SUBGROUP||"").toLowerCase();
+  return h.includes("opening stock")||h.includes("op. stock")||h.includes("op stock")||h.includes("opening balance stock");
 }
 export function isClosingStock(row) {
-  const h = (row.HEAD || row.GROUP || "").toLowerCase();
-  return h.includes("closing stock") || h.includes("closing balance") || h.includes("cl. stock") || h.includes("cl stock");
+  const h = (row.HEAD||row.GROUP||row.SUBGROUP||"").toLowerCase();
+  return h.includes("closing stock")||h.includes("cl. stock")||h.includes("cl stock")||h.includes("closing balance stock");
 }
 export function isDepreciation(row) {
-  const h = (row.HEAD || row.GROUP || "").toLowerCase();
-  return h.includes("depreciation") || h.includes("amortisation") || h.includes("amortization");
+  const h=(row.HEAD||row.GROUP||"").toLowerCase();
+  return h.includes("depreciation")||h.includes("amortisation")||h.includes("amortization");
 }
 export function isProvision(row) {
-  const h = (row.HEAD || row.GROUP || "").toLowerCase();
-  return h.includes("provision") || h.includes("reserve");
+  const h=(row.HEAD||row.GROUP||"").toLowerCase();
+  return h.includes("provision")||h.includes("reserve");
 }
 
 // ── MAIN HEAD CLASSIFICATION ──
+// CRITICAL: Always check for "indirect" FIRST before "direct"
+// "indirect income".includes("direct income") = TRUE — that's the bug we're fixing
 export function isDirectIncome(mh) {
   if (!mh) return false;
-  const m = mh.toLowerCase();
-  return m.includes("direct income") || m.includes("trading income") || m.includes("sales income");
+  const m = mh.toLowerCase().trim();
+  if (m.startsWith("indirect")) return false; // ← CRITICAL guard
+  return m.startsWith("direct income")||m.startsWith("trading income")||m.startsWith("sales income")||m==="sales"||m==="direct income";
 }
 export function isDirectExpense(mh) {
   if (!mh) return false;
-  const m = mh.toLowerCase();
-  return m.includes("direct expense") || m.includes("cogs") || m.includes("cost of goods") || m.includes("trading expense") || m.includes("purchase");
+  const m = mh.toLowerCase().trim();
+  if (m.startsWith("indirect")) return false; // ← CRITICAL guard
+  return m.startsWith("direct expense")||m.startsWith("trading expense")||m.startsWith("cogs")||m.startsWith("cost of goods")||m==="direct expense"||m==="purchase";
 }
 export function isIndirectIncome(mh) {
   if (!mh) return false;
-  return mh.toLowerCase().includes("indirect income");
+  const m = mh.toLowerCase().trim();
+  return m.startsWith("indirect income")||m==="other income"||m==="non-operating income";
 }
 export function isIndirectExpense(mh) {
   if (!mh) return false;
-  return mh.toLowerCase().includes("indirect expense");
+  const m = mh.toLowerCase().trim();
+  return m.startsWith("indirect expense")||m==="operating expense"||m==="other expense"||m==="indirect expense";
 }
-export function isIncome(mh) { return isDirectIncome(mh) || isIndirectIncome(mh); }
-export function isExpense(mh) { return isDirectExpense(mh) || isIndirectExpense(mh); }
+export function isIncome(mh) { return isDirectIncome(mh)||isIndirectIncome(mh); }
+export function isExpense(mh) { return isDirectExpense(mh)||isIndirectExpense(mh); }
 
-// ── SMART SUM with accounting rules ──
-// For Opening Stock → only first month in data
-// For Closing Stock → only last month in data
-// For everything else → sum all
-export function smartSum(rows, field = "AMOUNT") {
-  if (!rows || rows.length === 0) return 0;
-
-  // Separate stock rows from normal rows
-  const openingRows = rows.filter(isOpeningStock);
-  const closingRows = rows.filter(isClosingStock);
-  const normalRows = rows.filter(r => !isOpeningStock(r) && !isClosingStock(r));
-
-  let total = normalRows.reduce((s, r) => s + (parseFloat(r[field]) || 0), 0);
-
-  // Opening Stock: only take the FIRST month present in data
-  if (openingRows.length > 0) {
-    const months = MONTH_ORDER.filter(m => openingRows.some(r => r.MONTH === m));
-    const firstMonth = months[0];
-    const firstMonthRows = openingRows.filter(r => r.MONTH === firstMonth);
-    total += firstMonthRows.reduce((s, r) => s + (parseFloat(r[field]) || 0), 0);
+// ── SMART SUM: Opening Stock = first month only, Closing Stock = last month only ──
+export function smartSum(rows, field="AMOUNT") {
+  if (!rows||rows.length===0) return 0;
+  const openingRows=rows.filter(isOpeningStock);
+  const closingRows=rows.filter(isClosingStock);
+  const normalRows=rows.filter(r=>!isOpeningStock(r)&&!isClosingStock(r));
+  let total=normalRows.reduce((s,r)=>s+(parseFloat(r[field])||0),0);
+  if (openingRows.length>0) {
+    const months=MONTH_ORDER.filter(m=>openingRows.some(r=>r.MONTH===m));
+    const first=months[0];
+    total+=openingRows.filter(r=>r.MONTH===first).reduce((s,r)=>s+(parseFloat(r[field])||0),0);
   }
-
-  // Closing Stock: only take the LAST month present in data
-  if (closingRows.length > 0) {
-    const months = MONTH_ORDER.filter(m => closingRows.some(r => r.MONTH === m));
-    const lastMonth = months[months.length - 1];
-    const lastMonthRows = closingRows.filter(r => r.MONTH === lastMonth);
-    total += lastMonthRows.reduce((s, r) => s + (parseFloat(r[field]) || 0), 0);
+  if (closingRows.length>0) {
+    const months=MONTH_ORDER.filter(m=>closingRows.some(r=>r.MONTH===m));
+    const last=months[months.length-1];
+    total+=closingRows.filter(r=>r.MONTH===last).reduce((s,r)=>s+(parseFloat(r[field])||0),0);
   }
-
   return total;
 }
 
-export function sumAmount(rows) {
-  return rows.reduce((s, r) => s + (parseFloat(r.AMOUNT) || 0), 0);
-}
-export function sumBudget(rows) {
-  return rows.reduce((s, r) => s + (parseFloat(r.BUDGET) || 0), 0);
-}
-export function sumCount(rows) {
-  return rows.reduce((s, r) => s + (parseFloat(r.COUNT) || 0), 0);
-}
+export function sumAmount(rows) { return rows.reduce((s,r)=>s+(parseFloat(r.AMOUNT)||0),0); }
+export function sumBudget(rows) { return rows.reduce((s,r)=>s+(parseFloat(r.BUDGET)||0),0); }
+export function sumCount(rows) { return rows.reduce((s,r)=>s+(parseFloat(r.COUNT)||0),0); }
 
-// ── KPI CALCULATION (with smart stock rules) ──
-export function calcKPIs(data) {
-  const directIncomeRows = data.filter(r => isDirectIncome(r.MAIN_HEAD));
-  const directExpenseRows = data.filter(r => isDirectExpense(r.MAIN_HEAD));
-  const indirectIncomeRows = data.filter(r => isIndirectIncome(r.MAIN_HEAD));
-  const indirectExpenseRows = data.filter(r => isIndirectExpense(r.MAIN_HEAD));
+// ── KPI CALCULATION ──
+export function calcKPIs(data, excludedGroups=[]) {
+  const filtered = excludedGroups.length>0 ? data.filter(r=>!excludedGroups.includes(r.GROUP)) : data;
+  const diRows=filtered.filter(r=>isDirectIncome(r.MAIN_HEAD));
+  const deRows=filtered.filter(r=>isDirectExpense(r.MAIN_HEAD));
+  const iiRows=filtered.filter(r=>isIndirectIncome(r.MAIN_HEAD));
+  const ieRows=filtered.filter(r=>isIndirectExpense(r.MAIN_HEAD));
 
-  const grossRevenue = smartSum(directIncomeRows);
-  const cogs = smartSum(directExpenseRows);
-  const grossProfit = grossRevenue - cogs;
-  const indirectIncome = smartSum(indirectIncomeRows);
-  const indirectExpense = smartSum(indirectExpenseRows);
-  const netProfit = grossProfit + indirectIncome - indirectExpense;
-  // Combined totals — used only for "all income/expense groups" pie chart overviews,
-  // NOT used for the headline KPI cards (those show Sales/COGS/Indirect Income/Indirect Expense directly)
-  const totalExpenses = cogs + indirectExpense;
-  const totalIncome = grossRevenue + indirectIncome;
-  const totalCount = sumCount(data);
+  const grossRevenue=smartSum(diRows);
+  const cogs=smartSum(deRows);
+  const grossProfit=grossRevenue-cogs;
+  const indirectIncome=smartSum(iiRows);
+  const indirectExpense=smartSum(ieRows);
+  const netProfit=grossProfit+indirectIncome-indirectExpense;
+  const totalExpenses=cogs+indirectExpense;
+  const totalIncome=grossRevenue+indirectIncome;
+  const totalCount=sumCount(filtered);
 
-  // Budget KPIs
-  const budgetRevenue = sumBudget(directIncomeRows);
-  const budgetExpense = sumBudget(directExpenseRows) + sumBudget(indirectExpenseRows);
-  const budgetProfit = budgetRevenue - budgetExpense;
+  const budgetRevenue=sumBudget(diRows);
+  const budgetExpense=sumBudget(deRows)+sumBudget(ieRows);
+  const budgetProfit=budgetRevenue-budgetExpense;
 
-  // Row-level data quality check: rows whose MAIN_HEAD didn't match any known category
-  const unclassifiedRows = data.filter(r =>
-    r.MAIN_HEAD && !isDirectIncome(r.MAIN_HEAD) && !isDirectExpense(r.MAIN_HEAD) &&
-    !isIndirectIncome(r.MAIN_HEAD) && !isIndirectExpense(r.MAIN_HEAD)
-  );
-  const blankMainHeadRows = data.filter(r => !r.MAIN_HEAD);
+  // Get unique MAIN HEAD labels for dynamic KPI display
+  const mainHeadSums={};
+  const mainHeads=[...new Set(filtered.map(r=>r.MAIN_HEAD).filter(Boolean))];
+  mainHeads.forEach(mh=>{
+    mainHeadSums[mh]=smartSum(filtered.filter(r=>r.MAIN_HEAD===mh));
+  });
+
+  // Data quality
+  const unclassifiedCount=filtered.filter(r=>r.MAIN_HEAD&&!isDirectIncome(r.MAIN_HEAD)&&!isDirectExpense(r.MAIN_HEAD)&&!isIndirectIncome(r.MAIN_HEAD)&&!isIndirectExpense(r.MAIN_HEAD)).length;
+  const blankMainHeadCount=filtered.filter(r=>!r.MAIN_HEAD).length;
 
   return {
-    grossRevenue, cogs, grossProfit,
-    grossMargin: grossRevenue ? (grossProfit / grossRevenue) * 100 : 0,
-    indirectIncome, indirectExpense,
+    grossRevenue,cogs,grossProfit,
+    grossMargin:grossRevenue?(grossProfit/grossRevenue)*100:0,
+    indirectIncome,indirectExpense,
     netProfit,
-    // Net margin on Sales (standard convention: net profit as % of sales/revenue)
-    netMargin: grossRevenue ? (netProfit / grossRevenue) * 100 : 0,
-    totalExpenses, totalIncome, totalCount,
-    budgetRevenue, budgetExpense, budgetProfit,
-    revenueVariance: grossRevenue - budgetRevenue,
-    profitVariance: netProfit - budgetProfit,
-    unclassifiedCount: unclassifiedRows.length,
-    blankMainHeadCount: blankMainHeadRows.length,
+    netMargin:grossRevenue?(netProfit/grossRevenue)*100:0,
+    totalExpenses,totalIncome,totalCount,
+    budgetRevenue,budgetExpense,budgetProfit,
+    revenueVariance:grossRevenue-budgetRevenue,
+    profitVariance:netProfit-budgetProfit,
+    mainHeadSums,mainHeads,
+    unclassifiedCount,blankMainHeadCount,
   };
 }
 
-// ── COST CLASSIFICATION ENGINE ──
-// costMap: { [GROUP or HEAD]: { type: "fixed"|"variable"|"semi", fixedPct: 0-100 } }
-export function classifyCosts(data, costMap) {
-  const expenseRows = data.filter(r => isExpense(r.MAIN_HEAD));
-  let fixed = 0, variable = 0, semi = 0;
-
-  expenseRows.forEach(row => {
-    const key = row.HEAD || row.GROUP || "";
-    const classification = costMap[key] || costMap[row.GROUP] || { type: "variable", fixedPct: 0 };
-    const amt = Math.abs(parseFloat(row.AMOUNT) || 0);
-
-    if (classification.type === "fixed") {
-      fixed += amt;
-    } else if (classification.type === "variable") {
-      variable += amt;
-    } else if (classification.type === "semi") {
-      const fp = (classification.fixedPct || 50) / 100;
-      fixed += amt * fp;
-      variable += amt * (1 - fp);
-      semi += amt;
-    }
+// ── COST CLASSIFICATION ──
+export function classifyCosts(data,costMap) {
+  const expenseRows=data.filter(r=>isExpense(r.MAIN_HEAD));
+  let fixed=0,variable=0,semi=0;
+  expenseRows.forEach(row=>{
+    const key=row.HEAD||row.GROUP||"";
+    const c=costMap[key]||costMap[row.GROUP]||{type:"variable",fixedPct:0};
+    const amt=Math.abs(parseFloat(row.AMOUNT)||0);
+    if(c.type==="fixed") fixed+=amt;
+    else if(c.type==="variable") variable+=amt;
+    else if(c.type==="semi"){const fp=(c.fixedPct||50)/100;fixed+=amt*fp;variable+=amt*(1-fp);semi+=amt;}
   });
-
-  return { fixed, variable, semi, total: fixed + variable };
+  return {fixed,variable,semi,total:fixed+variable};
 }
 
-// ── BREAK EVEN ANALYSIS ──
-export function calcBreakEven(revenue, fixedCosts, variableCosts) {
-  if (revenue === 0) return { bepRevenue: 0, bepUnits: 0, contributionMargin: 0, marginOfSafety: 0 };
-
-  const variableCostRatio = variableCosts / revenue;
-  const contributionMarginRatio = 1 - variableCostRatio;
-  const bepRevenue = contributionMarginRatio > 0 ? fixedCosts / contributionMarginRatio : 0;
-  const marginOfSafety = revenue > 0 ? ((revenue - bepRevenue) / revenue) * 100 : 0;
-
-  return {
-    bepRevenue,
-    contributionMarginRatio: contributionMarginRatio * 100,
-    contributionMargin: revenue - variableCosts,
-    marginOfSafety,
-    variableCostRatio: variableCostRatio * 100,
-  };
+// ── BREAK EVEN ──
+export function calcBreakEven(revenue,fixedCosts,variableCosts) {
+  if(revenue===0) return {bepRevenue:0,bepUnits:0,contributionMargin:0,marginOfSafety:0,contributionMarginRatio:0,variableCostRatio:0};
+  const vcRatio=variableCosts/revenue;
+  const cmRatio=1-vcRatio;
+  const bepRevenue=cmRatio>0?fixedCosts/cmRatio:0;
+  return {bepRevenue,contributionMarginRatio:cmRatio*100,contributionMargin:revenue-variableCosts,marginOfSafety:revenue>0?((revenue-bepRevenue)/revenue)*100:0,variableCostRatio:vcRatio*100};
 }
 
-// ── PROFIT PROJECTION ENGINE ──
-export function calcProjection(currentKPI, fixedCosts, variableCosts, targetProfit) {
-  const currentRevenue = currentKPI.grossRevenue;
-  const variableRatio = currentRevenue > 0 ? variableCosts / currentRevenue : 0;
-  const contributionRatio = 1 - variableRatio;
-
-  // Scenario 1: Revenue increase needed (costs stay same)
-  const revenueNeeded = contributionRatio > 0
-    ? (fixedCosts + targetProfit) / contributionRatio
-    : 0;
-  const revenueIncrease = revenueNeeded - currentRevenue;
-  const revenueIncreasePct = currentRevenue > 0 ? (revenueIncrease / currentRevenue) * 100 : 0;
-
-  // Scenario 2: Cost cut needed (revenue stays same)
-  const maxAllowedCosts = currentRevenue - targetProfit;
-  const costCutNeeded = (fixedCosts + variableCosts) - maxAllowedCosts;
-  const costCutPct = (fixedCosts + variableCosts) > 0 ? (costCutNeeded / (fixedCosts + variableCosts)) * 100 : 0;
-
-  // Scenario 3: Mixed (50% revenue increase + 50% cost cut)
-  const mixedRevenue = currentRevenue + (revenueIncrease * 0.5);
-  const mixedCostCut = costCutNeeded * 0.5;
-  const mixedNewCosts = (fixedCosts + variableCosts) - mixedCostCut;
-  const mixedProfit = mixedRevenue * contributionRatio - fixedCosts;
-
-  // Profit at various revenue levels (for chart)
-  const steps = 10;
-  const minRev = currentRevenue * 0.5;
-  const maxRev = Math.max(revenueNeeded * 1.2, currentRevenue * 1.5);
-  const profitCurve = Array.from({ length: steps + 1 }, (_, i) => {
-    const rev = minRev + (maxRev - minRev) * (i / steps);
-    const varCost = rev * variableRatio;
-    const profit = rev - varCost - fixedCosts;
-    return { revenue: rev, profit, label: formatINR(rev, true) };
+// ── PROJECTION ──
+export function calcProjection(currentKPI,fixedCosts,variableCosts,targetProfit) {
+  const currentRevenue=currentKPI.grossRevenue;
+  const variableRatio=currentRevenue>0?variableCosts/currentRevenue:0;
+  const contributionRatio=1-variableRatio;
+  const revenueNeeded=contributionRatio>0?(fixedCosts+targetProfit)/contributionRatio:0;
+  const revenueIncrease=revenueNeeded-currentRevenue;
+  const revenueIncreasePct=currentRevenue>0?(revenueIncrease/currentRevenue)*100:0;
+  const maxAllowedCosts=currentRevenue-targetProfit;
+  const costCutNeeded=(fixedCosts+variableCosts)-maxAllowedCosts;
+  const costCutPct=(fixedCosts+variableCosts)>0?(costCutNeeded/(fixedCosts+variableCosts))*100:0;
+  const mixedRevenue=currentRevenue+(revenueIncrease*0.5);
+  const mixedCostCut=costCutNeeded*0.5;
+  const mixedProfit=mixedRevenue*contributionRatio-fixedCosts;
+  const maxRev=Math.max(revenueNeeded*1.2,currentRevenue*1.5);
+  const profitCurve=Array.from({length:11},(_,i)=>{
+    const rev=(maxRev/10)*i;
+    const profit=rev-(rev*variableRatio)-fixedCosts;
+    return {revenue:rev,profit,label:formatINR(rev,true)};
   });
-
-  return {
-    targetProfit,
-    scenarios: {
-      revenueOnly: { revenueNeeded, revenueIncrease, revenueIncreasePct, costCutNeeded: 0 },
-      costOnly: { revenueNeeded: currentRevenue, revenueIncrease: 0, costCutNeeded, costCutPct },
-      mixed: { revenueNeeded: mixedRevenue, revenueIncrease: revenueIncrease * 0.5, costCutNeeded: mixedCostCut, mixedProfit },
-    },
-    profitCurve,
-  };
+  return {targetProfit,scenarios:{
+    revenueOnly:{revenueNeeded,revenueIncrease,revenueIncreasePct,costCutNeeded:0},
+    costOnly:{revenueNeeded:currentRevenue,revenueIncrease:0,costCutNeeded,costCutPct},
+    mixed:{revenueNeeded:mixedRevenue,revenueIncrease:revenueIncrease*0.5,costCutNeeded:mixedCostCut,mixedProfit},
+  },profitCurve};
 }
 
-// ── FORMATTING ──
-export function formatINR(val, short = false) {
-  if (val === null || val === undefined || isNaN(val)) return "₹0";
-  const abs = Math.abs(val);
-  if (short) {
-    if (abs >= 10000000) return `₹${(val / 10000000).toFixed(2)}Cr`;
-    if (abs >= 100000) return `₹${(val / 100000).toFixed(2)}L`;
-    if (abs >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
-    return `₹${val.toFixed(0)}`;
+// ── NUMBER FORMATTING ──
+// format: "full" | "lakhs" | "crores" | "thousands" | "short"
+export function formatAmount(val, format="lakhs") {
+  if(val===null||val===undefined||isNaN(val)) return "₹0";
+  const abs=Math.abs(val);
+  const neg=val<0;
+  let str;
+  switch(format) {
+    case "full":
+      str=new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",minimumFractionDigits:2,maximumFractionDigits:2}).format(val);
+      return str;
+    case "thousands":
+      str=`₹${(abs/1000).toFixed(2)}K`;
+      return neg?`-${str}`:str;
+    case "lakhs":
+      if(abs>=10000000) { str=`₹${(abs/10000000).toFixed(2)}Cr`; return neg?`-${str}`:str; }
+      str=`₹${(abs/100000).toFixed(2)}L`;
+      return neg?`-${str}`:str;
+    case "crores":
+      str=`₹${(abs/10000000).toFixed(2)}Cr`;
+      return neg?`-${str}`:str;
+    case "short":
+    default:
+      if(abs>=10000000){str=`₹${(abs/10000000).toFixed(2)}Cr`;return neg?`-${str}`:str;}
+      if(abs>=100000){str=`₹${(abs/100000).toFixed(2)}L`;return neg?`-${str}`:str;}
+      if(abs>=1000){str=`₹${(abs/1000).toFixed(1)}K`;return neg?`-${str}`:str;}
+      return `₹${val.toFixed(0)}`;
   }
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(val);
+}
+
+// Legacy alias kept for backward compatibility
+export function formatINR(val, short=false) {
+  if(short) return formatAmount(val,"short");
+  return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(val||0);
 }
 
 export function formatPct(val) {
-  if (isNaN(val)) return "0.0%";
-  return `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
+  if(isNaN(val)) return "0.0%";
+  return `${val>=0?"+":""}${val.toFixed(1)}%`;
 }
 
-// ── GROUPING UTILITIES ──
-export function groupBy(arr, key) {
-  return arr.reduce((acc, row) => {
-    const k = row[key] || "Unknown";
-    if (!acc[k]) acc[k] = [];
+// ── UTILITIES ──
+export function groupBy(arr,key) {
+  return arr.reduce((acc,row)=>{
+    const k=row[key]||"Unknown";
+    if(!acc[k]) acc[k]=[];
     acc[k].push(row);
     return acc;
-  }, {});
+  },{});
 }
 
 export function monthlyTrend(data) {
-  const byMonth = groupBy(data, "MONTH");
-  return MONTH_ORDER.filter(m => byMonth[m]).map(m => {
-    const rows = byMonth[m];
-    const kpi = calcKPIs(rows);
-    return { month: m.slice(0, 3), revenue: kpi.grossRevenue, expenses: kpi.totalExpenses, profit: kpi.netProfit };
+  const byMonth=groupBy(data,"MONTH");
+  return MONTH_ORDER.filter(m=>byMonth[m]).map(m=>{
+    const rows=byMonth[m];
+    const kpi=calcKPIs(rows);
+    return {month:m.slice(0,3),revenue:kpi.grossRevenue,expenses:kpi.totalExpenses,profit:kpi.netProfit};
   });
 }
 
-// ── UNIQUE COST GROUPS from data ──
 export function getCostGroups(data) {
-  const expenseRows = data.filter(r => isExpense(r.MAIN_HEAD));
-  const groups = {};
-  expenseRows.forEach(row => {
-    const key = row.GROUP || "Unknown";
-    if (!groups[key]) groups[key] = { group: key, heads: new Set(), total: 0 };
-    if (row.HEAD) groups[key].heads.add(row.HEAD);
-    groups[key].total += Math.abs(parseFloat(row.AMOUNT) || 0);
+  const expenseRows=data.filter(r=>isExpense(r.MAIN_HEAD));
+  const groups={};
+  expenseRows.forEach(row=>{
+    const key=row.GROUP||"Unknown";
+    if(!groups[key]) groups[key]={group:key,heads:new Set(),total:0};
+    if(row.HEAD) groups[key].heads.add(row.HEAD);
+    groups[key].total+=Math.abs(parseFloat(row.AMOUNT)||0);
   });
-  return Object.values(groups).map(g => ({ ...g, heads: [...g.heads] }));
+  return Object.values(groups).map(g=>({...g,heads:[...g.heads]}));
 }

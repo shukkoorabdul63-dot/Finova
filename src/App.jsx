@@ -3,6 +3,7 @@ import { DataProvider } from "./context/DataContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { CostProvider } from "./context/CostContext";
 import { AIProvider } from "./context/AIContext";
+import { FormatProvider } from "./context/FormatContext";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./pages/Dashboard";
@@ -40,20 +41,22 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <DataProvider>
-        <CostProvider>
-          <AIProvider>
-            <div className="app-shell">
-              <Sidebar page={page} setPage={setPage} />
-              <div className="main-area">
-                <TopBar onUpload={() => setShowUpload(true)} />
-                <div className="page-content">{pages[page]}</div>
+      <FormatProvider>
+        <DataProvider>
+          <CostProvider>
+            <AIProvider>
+              <div className="app-shell">
+                <Sidebar page={page} setPage={setPage} />
+                <div className="main-area">
+                  <TopBar onUpload={() => setShowUpload(true)} />
+                  <div className="page-content">{pages[page]}</div>
+                </div>
+                {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
               </div>
-              {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-            </div>
-          </AIProvider>
-        </CostProvider>
-      </DataProvider>
+            </AIProvider>
+          </CostProvider>
+        </DataProvider>
+      </FormatProvider>
     </ThemeProvider>
   );
 }
