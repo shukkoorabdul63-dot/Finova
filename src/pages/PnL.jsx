@@ -128,7 +128,7 @@ export default function PnL() {
           <div className="card-title">Profit & Loss Statement</div>
           <div className="card-sub">Trading Account → Gross Profit → {iiLabel} → {ieLabel} → Net Profit</div>
         </div>
-        <div className="table-wrap">
+        <div className="pnl-scroll-wrap">
           <table className="data-table pnl-table">
             <thead>
               <tr>

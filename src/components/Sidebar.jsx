@@ -15,6 +15,7 @@ const ANALYSIS = [
   { id: "costs", label: "Cost Classifier", icon: "⚙" },
   { id: "breakeven", label: "Break Even", icon: "◎" },
   { id: "projection", label: "Projection", icon: "🎯" },
+  { id: "productpnl", label: "Product P&L", icon: "🔗", badge: "NEW" },
 ];
 const VISUALIZE = [
   { id: "chartbuilder", label: "Chart Builder", icon: "📈", badge: "NEW" },

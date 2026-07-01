@@ -4,6 +4,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { CostProvider } from "./context/CostContext";
 import { AIProvider } from "./context/AIContext";
 import { FormatProvider } from "./context/FormatContext";
+import { CategoryProvider } from "./context/CategoryContext";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./pages/Dashboard";
@@ -18,6 +19,7 @@ import BreakEven from "./pages/BreakEven";
 import BudgetVsActual from "./pages/BudgetVsActual";
 import Projection from "./pages/Projection";
 import ChartBuilder from "./pages/ChartBuilder";
+import ProductPnL from "./pages/ProductPnL";
 import UploadModal from "./components/UploadModal";
 
 export default function App() {
@@ -35,6 +37,7 @@ export default function App() {
     breakeven: <BreakEven />,
     budget: <BudgetVsActual />,
     projection: <Projection />,
+    productpnl: <ProductPnL />,
     chartbuilder: <ChartBuilder />,
     ai: <AIChat />,
   };
@@ -44,16 +47,18 @@ export default function App() {
       <FormatProvider>
         <DataProvider>
           <CostProvider>
-            <AIProvider>
-              <div className="app-shell">
-                <Sidebar page={page} setPage={setPage} />
-                <div className="main-area">
-                  <TopBar onUpload={() => setShowUpload(true)} />
-                  <div className="page-content">{pages[page]}</div>
+            <CategoryProvider>
+              <AIProvider>
+                <div className="app-shell">
+                  <Sidebar page={page} setPage={setPage} />
+                  <div className="main-area">
+                    <TopBar onUpload={() => setShowUpload(true)} />
+                    <div className="page-content">{pages[page]}</div>
+                  </div>
+                  {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
                 </div>
-                {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-              </div>
-            </AIProvider>
+              </AIProvider>
+            </CategoryProvider>
           </CostProvider>
         </DataProvider>
       </FormatProvider>
