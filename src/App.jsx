@@ -5,10 +5,11 @@ import { CostProvider } from "./context/CostContext";
 import { AIProvider } from "./context/AIContext";
 import { FormatProvider } from "./context/FormatContext";
 import { CategoryProvider } from "./context/CategoryContext";
+import { UnitProfileProvider } from "./context/UnitProfileContext";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
+import Counts from "./pages/Counts";
 import PnL from "./pages/PnL";
 import BranchAnalysis from "./pages/BranchAnalysis";
 import YearOverYear from "./pages/YearOverYear";
@@ -19,7 +20,6 @@ import BreakEven from "./pages/BreakEven";
 import BudgetVsActual from "./pages/BudgetVsActual";
 import Projection from "./pages/Projection";
 import ChartBuilder from "./pages/ChartBuilder";
-import ProductPnL from "./pages/ProductPnL";
 import UploadModal from "./components/UploadModal";
 
 export default function App() {
@@ -28,7 +28,7 @@ export default function App() {
 
   const pages = {
     dashboard: <Dashboard />,
-    transactions: <Transactions />,
+    counts: <Counts />,
     pnl: <PnL />,
     branch: <BranchAnalysis />,
     yoy: <YearOverYear />,
@@ -37,7 +37,6 @@ export default function App() {
     breakeven: <BreakEven />,
     budget: <BudgetVsActual />,
     projection: <Projection />,
-    productpnl: <ProductPnL />,
     chartbuilder: <ChartBuilder />,
     ai: <AIChat />,
   };
@@ -48,16 +47,18 @@ export default function App() {
         <DataProvider>
           <CostProvider>
             <CategoryProvider>
-              <AIProvider>
-                <div className="app-shell">
-                  <Sidebar page={page} setPage={setPage} />
-                  <div className="main-area">
-                    <TopBar onUpload={() => setShowUpload(true)} />
-                    <div className="page-content">{pages[page]}</div>
+              <UnitProfileProvider>
+                <AIProvider>
+                  <div className="app-shell">
+                    <Sidebar page={page} setPage={setPage} />
+                    <div className="main-area">
+                      <TopBar onUpload={() => setShowUpload(true)} />
+                      <div className="page-content">{pages[page]}</div>
+                    </div>
+                    {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
                   </div>
-                  {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
-                </div>
-              </AIProvider>
+                </AIProvider>
+              </UnitProfileProvider>
             </CategoryProvider>
           </CostProvider>
         </DataProvider>

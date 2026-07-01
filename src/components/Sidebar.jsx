@@ -2,7 +2,7 @@ import { useData } from "../context/DataContext";
 
 const NAV = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
-  { id: "transactions", label: "Transactions", icon: "≡" },
+  { id: "counts", label: "Counts", icon: "#", badge: "NEW" },
   { id: "cashflow", label: "Cash Flow", icon: "⇄" },
 ];
 const REPORTS = [
@@ -15,10 +15,9 @@ const ANALYSIS = [
   { id: "costs", label: "Cost Classifier", icon: "⚙" },
   { id: "breakeven", label: "Break Even", icon: "◎" },
   { id: "projection", label: "Projection", icon: "🎯" },
-  { id: "productpnl", label: "Product P&L", icon: "🔗", badge: "NEW" },
 ];
 const VISUALIZE = [
-  { id: "chartbuilder", label: "Chart Builder", icon: "📈", badge: "NEW" },
+  { id: "chartbuilder", label: "Chart Builder", icon: "📈" },
   { id: "ai", label: "Finova AI", icon: "✦", badge: "BETA" },
 ];
 
@@ -50,6 +49,7 @@ export default function Sidebar({ page, setPage }) {
           <button key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
             <span className="nav-icon">{n.icon}</span>
             <span>{n.label}</span>
+            {n.badge && <span className={`badge ${n.badge === "NEW" ? "badge-green" : ""}`}>{n.badge}</span>}
           </button>
         ))}
         <Section label="REPORTS" items={REPORTS} />
