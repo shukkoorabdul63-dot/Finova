@@ -32,9 +32,10 @@ export function CostProvider({ children }) {
   const getClassification = (group) => costMap[group] || { type: "variable", fixedPct: 50 };
 
   const reset = () => setCostMap({});
+  const importCostMap = (map) => setCostMap(map && typeof map === "object" ? map : {});
 
   return (
-    <CostContext.Provider value={{ costMap, setClassification, bulkSet, setFixedPct, getClassification, reset }}>
+    <CostContext.Provider value={{ costMap, setClassification, bulkSet, setFixedPct, getClassification, reset, importCostMap }}>
       {children}
     </CostContext.Provider>
   );

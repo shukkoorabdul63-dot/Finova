@@ -43,8 +43,10 @@ export function UnitProfileProvider({ children }) {
       : p));
   };
 
+  const resetAll = () => setProfiles([]);
+
   return (
-    <UnitProfileContext.Provider value={{ profiles, addProfile, removeProfile, updateProfile, addFullLineItem, updateLineItem, removeLineItem }}>
+    <UnitProfileContext.Provider value={{ profiles, addProfile, removeProfile, updateProfile, addFullLineItem, updateLineItem, removeLineItem, resetAll }}>
       {children}
     </UnitProfileContext.Provider>
   );
