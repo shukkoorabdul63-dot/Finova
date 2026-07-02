@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useData } from "../context/DataContext";
-import { aggregateForChart, getGroupByKeys, CHART_TYPES, X_FIELDS, Y_METRICS, CHART_COLORS } from "../utils/chartAggregator";
+import { aggregateForChart, aggregateComboForChart, getGroupByKeys, CHART_TYPES, X_FIELDS, Y_METRICS, CHART_COLORS } from "../utils/chartAggregator";
 import { formatINR } from "../utils/finance";
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  BarChart, Bar, LineChart, Line, AreaChart, Area, ComposedChart,
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend, CartesianGrid
 } from "recharts";
@@ -21,7 +21,7 @@ const SORT_OPTIONS = [
   { id: "natural", label: "Natural" },
 ];
 
-function ChartRenderer({ chartType, data, xKey, groupKeys, yMetricId, colorScheme, title }) {
+function ChartRenderer({ chartType, data, xKey, groupKeys, colorScheme, metric1Label, metric2Label }) {
   const fmt = v => formatINR(v, true);
   const tt = {
     contentStyle: { background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12 }
@@ -30,10 +30,26 @@ function ChartRenderer({ chartType, data, xKey, groupKeys, yMetricId, colorSchem
 
   const colors = colorScheme || CHART_COLORS;
   const isGrouped = groupKeys && groupKeys.length > 0;
-  const yKey = isGrouped ? null : "value";
 
   if (!data || data.length === 0) {
     return <div className="chart-empty">No data to display — adjust your selections</div>;
+  }
+
+  if (chartType === "combo") {
+    return (
+      <ResponsiveContainer width="100%" height={320}>
+        <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 30 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+          <XAxis dataKey="name" {...ax} angle={data.length > 8 ? -35 : 0} textAnchor={data.length > 8 ? "end" : "middle"} />
+          <YAxis yAxisId="left" tickFormatter={fmt} {...ax} width={65} />
+          <YAxis yAxisId="right" orientation="right" tickFormatter={v => v.toFixed ? v.toFixed(1) : v} {...ax} width={55} />
+          <Tooltip formatter={(v, n) => [n === metric2Label ? v.toFixed(2) : fmt(v), n]} {...tt} />
+          <Legend wrapperStyle={{ fontSize: 11, color: "var(--text-muted)" }} />
+          <Bar yAxisId="left" dataKey="value1" name={metric1Label} fill={colors[0]} radius={[3, 3, 0, 0]} />
+          <Line yAxisId="right" type="monotone" dataKey="value2" name={metric2Label} stroke={colors[1]} strokeWidth={2.5} dot={{ r: 3 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    );
   }
 
   if (chartType === "pie" || chartType === "donut") {
@@ -138,6 +154,7 @@ export default function ChartBuilder() {
   const [chartType, setChartType] = useState("bar");
   const [xField, setXField] = useState("BRANCH");
   const [yMetric, setYMetric] = useState("net_profit");
+  const [yMetric2, setYMetric2] = useState("net_margin");
   const [groupBy, setGroupBy] = useState("");
   const [sortOrder, setSortOrder] = useState("desc");
   const [limit, setLimit] = useState(10);
@@ -146,6 +163,8 @@ export default function ChartBuilder() {
   const [activeChart, setActiveChart] = useState(null);
   const [filterField, setFilterField] = useState("");
   const [filterValue, setFilterValue] = useState("All");
+
+  const isCombo = chartType === "combo";
 
   const filterOptions = useMemo(() => {
     if (!filterField) return [];
@@ -158,18 +177,23 @@ export default function ChartBuilder() {
   }, [data, filterField, filterValue]);
 
   const chartData = useMemo(() => {
+    if (isCombo) return aggregateComboForChart(filteredData, xField, yMetric, yMetric2, sortOrder, limit);
     return aggregateForChart(filteredData, xField, yMetric, groupBy || null, sortOrder, limit);
-  }, [filteredData, xField, yMetric, groupBy, sortOrder, limit]);
+  }, [filteredData, xField, yMetric, yMetric2, groupBy, sortOrder, limit, isCombo]);
 
   const groupKeys = useMemo(() => {
-    if (!groupBy) return [];
+    if (isCombo || !groupBy) return [];
     return getGroupByKeys(filteredData, groupBy);
-  }, [filteredData, groupBy]);
+  }, [filteredData, groupBy, isCombo]);
 
-  const currentTitle = title || `${Y_METRICS.find(m => m.id === yMetric)?.label || ""} by ${X_FIELDS.find(f => f.id === xField)?.label || ""}`;
+  const metric1Label = Y_METRICS.find(m => m.id === yMetric)?.label || "";
+  const metric2Label = Y_METRICS.find(m => m.id === yMetric2)?.label || "";
+  const currentTitle = title || (isCombo
+    ? `${metric1Label} & ${metric2Label} by ${X_FIELDS.find(f => f.id === xField)?.label || ""}`
+    : `${metric1Label} by ${X_FIELDS.find(f => f.id === xField)?.label || ""}`);
 
   function saveChart() {
-    const chart = { id: Date.now(), title: currentTitle, chartType, xField, yMetric, groupBy, sortOrder, limit, filterField, filterValue, data: chartData, groupKeys };
+    const chart = { id: Date.now(), title: currentTitle, chartType, xField, yMetric, yMetric2, groupBy, sortOrder, limit, filterField, filterValue, data: chartData, groupKeys, metric1Label, metric2Label };
     setSavedCharts(s => [...s, chart]);
     setActiveChart(chart.id);
   }
@@ -213,18 +237,28 @@ export default function ChartBuilder() {
               </select>
             </div>
             <div className="cb-field-row">
-              <label>Y Axis (Metric)</label>
+              <label>{isCombo ? "Y Axis 1 — Bars" : "Y Axis (Metric)"}</label>
               <select className="filter-select" style={{ width: "100%" }} value={yMetric} onChange={e => setYMetric(e.target.value)}>
                 {Y_METRICS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </div>
-            <div className="cb-field-row">
-              <label>Group By (optional)</label>
-              <select className="filter-select" style={{ width: "100%" }} value={groupBy} onChange={e => setGroupBy(e.target.value)}>
-                <option value="">None</option>
-                {X_FIELDS.filter(f => f.id !== xField).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-              </select>
-            </div>
+            {isCombo && (
+              <div className="cb-field-row">
+                <label>Y Axis 2 — Line</label>
+                <select className="filter-select" style={{ width: "100%" }} value={yMetric2} onChange={e => setYMetric2(e.target.value)}>
+                  {Y_METRICS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </select>
+              </div>
+            )}
+            {!isCombo && (
+              <div className="cb-field-row">
+                <label>Group By (optional)</label>
+                <select className="filter-select" style={{ width: "100%" }} value={groupBy} onChange={e => setGroupBy(e.target.value)}>
+                  <option value="">None</option>
+                  {X_FIELDS.filter(f => f.id !== xField).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                </select>
+              </div>
+            )}
             <div className="cb-field-row">
               <label>Sort</label>
               <select className="filter-select" style={{ width: "100%" }} value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
@@ -258,7 +292,6 @@ export default function ChartBuilder() {
             )}
           </div>
 
-          {/* Saved Charts */}
           {savedCharts.length > 0 && (
             <div className="cb-panel">
               <div className="cb-panel-title">💾 Saved Charts</div>
@@ -275,7 +308,6 @@ export default function ChartBuilder() {
 
         {/* Main Chart Area */}
         <div className="cb-main">
-          {/* Live Preview */}
           <div className="card cb-chart-card">
             <div className="cb-chart-header">
               <input className="cb-title-input" value={title} onChange={e => setTitle(e.target.value)} placeholder={currentTitle} />
@@ -284,20 +316,19 @@ export default function ChartBuilder() {
               </div>
             </div>
             <div className="cb-chart-meta">
-              {chartData.length} data points • {X_FIELDS.find(f => f.id === xField)?.label} × {Y_METRICS.find(m => m.id === yMetric)?.label}
+              {chartData.length} data points • {X_FIELDS.find(f => f.id === xField)?.label} × {isCombo ? `${metric1Label} + ${metric2Label}` : metric1Label}
               {filterField && filterValue !== "All" ? ` • Filtered: ${filterValue}` : ""}
             </div>
-            <ChartRenderer chartType={chartType} data={chartData} xKey="name" groupKeys={groupKeys} yMetricId={yMetric} colorScheme={CHART_COLORS} title="" />
+            <ChartRenderer chartType={chartType} data={chartData} xKey="name" groupKeys={groupKeys} colorScheme={CHART_COLORS} metric1Label={metric1Label} metric2Label={metric2Label} />
           </div>
 
-          {/* Saved Chart Preview */}
           {active && (
             <div className="card cb-chart-card">
               <div className="cb-chart-header">
                 <div style={{ fontWeight: 600 }}>{active.title}</div>
                 <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Saved chart</span>
               </div>
-              <ChartRenderer chartType={active.chartType} data={active.data} xKey="name" groupKeys={active.groupKeys} yMetricId={active.yMetric} colorScheme={CHART_COLORS} title="" />
+              <ChartRenderer chartType={active.chartType} data={active.data} xKey="name" groupKeys={active.groupKeys} colorScheme={CHART_COLORS} metric1Label={active.metric1Label} metric2Label={active.metric2Label} />
             </div>
           )}
         </div>

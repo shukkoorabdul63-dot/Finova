@@ -4,6 +4,7 @@ import { useFormat } from "../context/FormatContext";
 import { useUnitProfile } from "../context/UnitProfileContext";
 import { sumCount, sumAmount, MONTH_ORDER } from "../utils/finance";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import LineItemModal from "../components/LineItemModal";
 
 // ── Count-only formatter — NEVER pass this through the currency fmt() ──
 const cnt = v => (v || 0).toLocaleString("en-IN");
@@ -11,13 +12,13 @@ const cnt = v => (v || 0).toLocaleString("en-IN");
 export default function Counts() {
   const { data } = useData();
   const { fmt } = useFormat();
-  const { profiles, addProfile, removeProfile, addLineItem, updateLineItem, removeLineItem } = useUnitProfile();
+  const { profiles, addProfile, removeProfile, removeLineItem } = useUnitProfile();
 
   const [pivotField, setPivotField] = useState("GROUP"); // GROUP | DEPARTMENT
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfileCountGroup, setNewProfileCountGroup] = useState("");
+  const [modalState, setModalState] = useState(null); // { profileId, profileName, editingItem } | null
 
-  // Only rows that actually carry a count are relevant here
   const countRows = useMemo(() => data.filter(r => (parseFloat(r.COUNT) || 0) !== 0), [data]);
 
   const groups = useMemo(() => [...new Set(data.map(r => r.GROUP).filter(Boolean))].sort(), [data]);
@@ -54,18 +55,19 @@ export default function Counts() {
     return totals;
   }, [pivotColumns, countRows, pivotField]);
 
-  function toggleGroupInList(list, group) {
-    return list.includes(group) ? list.filter(g => g !== group) : [...list, group];
-  }
-
   function computeLineItem(li) {
     const addAmt = sumAmount(data.filter(r => li.addGroups.includes(r.GROUP)));
     const subAmt = sumAmount(data.filter(r => li.subtractGroups.includes(r.GROUP)));
     return addAmt - subAmt;
   }
-
   function computeProfileCount(p) {
     return sumCount(data.filter(r => p.countGroups.includes(r.GROUP)));
+  }
+  function groupsSummary(li) {
+    const parts = [];
+    if (li.addGroups.length) parts.push(`+${li.addGroups.length}`);
+    if (li.subtractGroups.length) parts.push(`−${li.subtractGroups.length}`);
+    return parts.join(" ") + " groups";
   }
 
   if (data.length === 0) return (
@@ -138,7 +140,7 @@ export default function Counts() {
           <h2 style={{ fontSize: "1.1rem" }}>Per-Unit Profitability</h2>
         </div>
         <div className="alert-banner" style={{ background: "rgba(124,106,247,0.08)", borderColor: "rgba(124,106,247,0.3)", color: "var(--accent)" }}>
-          Build a profile like "Profit / Vehicle" — pick which GROUP's count is the divisor, then add line items (e.g. GP, Labour, EW, AMC) where each is Amount ÷ Count.
+          Build a profile like "Profit / Vehicle" — pick which GROUP's count is the divisor, then add line items where each is Amount ÷ Count.
         </div>
 
         <div className="card">
@@ -158,6 +160,7 @@ export default function Counts() {
           </div>
         </div>
 
+        {/* Each profile: line items (left) side-by-side with calculated results (right) */}
         {profiles.map(p => {
           const profileCount = computeProfileCount(p);
           const results = p.lineItems.map(li => ({ ...li, perUnit: profileCount ? computeLineItem(li) / profileCount : 0 }));
@@ -173,67 +176,68 @@ export default function Counts() {
                 <button className="quick-btn reset" onClick={() => removeProfile(p.id)}>✕ Delete Profile</button>
               </div>
 
-              <div className="unit-lineitem-list">
-                {p.lineItems.map(li => (
-                  <div key={li.id} className="unit-lineitem-row">
-                    <input className="cb-title-input" style={{ width: 140, fontSize: 13 }} value={li.label}
-                      onChange={e => updateLineItem(p.id, li.id, { label: e.target.value })} />
-                    <div className="unit-lineitem-groups">
-                      <div className="unit-group-col">
-                        <span className="unit-group-label pos">+ Add groups</span>
-                        <div className="unit-chip-row">
-                          {groups.map(g => (
-                            <label key={g} className={`link-chip ${li.addGroups.includes(g) ? "active" : ""}`}>
-                              <input type="checkbox" checked={li.addGroups.includes(g)}
-                                onChange={() => updateLineItem(p.id, li.id, { addGroups: toggleGroupInList(li.addGroups, g) })} />
-                              {g}
-                            </label>
-                          ))}
-                        </div>
+              <div className="unit-profile-layout">
+                {/* LEFT: Line items management */}
+                <div className="unit-lineitem-panel">
+                  <div className="unit-panel-title">Line Items</div>
+                  {p.lineItems.length === 0 && (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: "0.5rem" }}>No line items yet — add your first below.</div>
+                  )}
+                  {p.lineItems.map(li => (
+                    <div key={li.id} className="unit-item-row">
+                      <div className="unit-item-info">
+                        <div className="unit-item-label">{li.label}</div>
+                        <div className="unit-item-groups-summary">{groupsSummary(li)}</div>
                       </div>
-                      <div className="unit-group-col">
-                        <span className="unit-group-label neg">− Subtract groups</span>
-                        <div className="unit-chip-row">
-                          {groups.map(g => (
-                            <label key={g} className={`link-chip ${li.subtractGroups.includes(g) ? "active" : ""}`}>
-                              <input type="checkbox" checked={li.subtractGroups.includes(g)}
-                                onChange={() => updateLineItem(p.id, li.id, { subtractGroups: toggleGroupInList(li.subtractGroups, g) })} />
-                              {g}
-                            </label>
-                          ))}
-                        </div>
+                      <div className="unit-item-actions">
+                        <button title="Edit" onClick={() => setModalState({ profileId: p.id, profileName: p.name, editingItem: li })}>✎</button>
+                        <button title="Delete" className="danger" onClick={() => removeLineItem(p.id, li.id)}>✕</button>
                       </div>
                     </div>
-                    <button className="saved-chart-del" onClick={() => removeLineItem(p.id, li.id)}>✕</button>
-                  </div>
-                ))}
-                <button className="quick-btn variable" style={{ fontSize: 12, marginTop: "0.5rem" }} onClick={() => addLineItem(p.id)}>+ Add Line Item</button>
-              </div>
-
-              {results.length > 0 && (
-                <div className="table-wrap" style={{ marginTop: "1rem" }}>
-                  <table className="data-table">
-                    <thead><tr><th>{p.name.toUpperCase()}</th><th style={{ textAlign: "right" }}>PER UNIT</th></tr></thead>
-                    <tbody>
-                      <tr><td style={{ fontWeight: 700, color: "var(--accent)" }}>COUNT</td><td style={{ textAlign: "right", fontWeight: 700, color: "var(--accent)" }}>{cnt(profileCount)}</td></tr>
-                      {results.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.label}</td>
-                          <td style={{ textAlign: "right" }} className={r.perUnit >= 0 ? "pos" : "neg"}>{fmt(r.perUnit)}</td>
-                        </tr>
-                      ))}
-                      <tr className="pnl-total-row">
-                        <td>TOTAL</td>
-                        <td style={{ textAlign: "right" }} className={totalPerUnit >= 0 ? "pos" : "neg"}>{fmt(totalPerUnit)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  ))}
+                  <button className="unit-add-btn" onClick={() => setModalState({ profileId: p.id, profileName: p.name, editingItem: null })}>
+                    + Add Line Items
+                  </button>
                 </div>
-              )}
+
+                {/* RIGHT: Calculated results */}
+                <div className="unit-results-panel">
+                  <div className="unit-panel-title">Calculation</div>
+                  {results.length === 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Results will appear here once you add line items.</div>
+                  ) : (
+                    <table className="data-table" style={{ width: "100%" }}>
+                      <tbody>
+                        <tr><td style={{ fontWeight: 700, color: "var(--accent)" }}>COUNT</td><td style={{ textAlign: "right", fontWeight: 700, color: "var(--accent)" }}>{cnt(profileCount)}</td></tr>
+                        {results.map(r => (
+                          <tr key={r.id}>
+                            <td>{r.label}</td>
+                            <td style={{ textAlign: "right" }} className={r.perUnit >= 0 ? "pos" : "neg"}>{fmt(r.perUnit)}</td>
+                          </tr>
+                        ))}
+                        <tr className="pnl-total-row">
+                          <td>TOTAL</td>
+                          <td style={{ textAlign: "right" }} className={totalPerUnit >= 0 ? "pos" : "neg"}>{fmt(totalPerUnit)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}
       </>}
+
+      {modalState && (
+        <LineItemModal
+          profileId={modalState.profileId}
+          profileName={modalState.profileName}
+          editingItem={modalState.editingItem}
+          groups={groups}
+          onClose={() => setModalState(null)}
+        />
+      )}
     </div>
   );
 }

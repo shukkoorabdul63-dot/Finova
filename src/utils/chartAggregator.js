@@ -9,6 +9,7 @@ export const CHART_TYPES = [
   { id: "pie", label: "Pie" },
   { id: "donut", label: "Donut" },
   { id: "stacked", label: "Stacked Bar" },
+  { id: "combo", label: "Combo (Bar+Line)" },
 ];
 
 export const X_FIELDS = [
@@ -49,7 +50,7 @@ export const CHART_COLORS = [
   "#a855f7","#14b8a6","#f59e0b","#ef4444","#06b6d4","#84cc16","#8b5cf6",
 ];
 
-function computeMetric(rows, metricId) {
+export function computeMetric(rows, metricId) {
   const kpi = calcKPIs(rows);
   switch (metricId) {
     case "gross_revenue": return kpi.grossRevenue;
@@ -119,4 +120,38 @@ export function aggregateForChart(data, xField, yMetricId, groupByField, sortOrd
 export function getGroupByKeys(data, groupByField) {
   if (!groupByField) return [];
   return [...new Set(data.map(r => r[groupByField]).filter(Boolean))].slice(0, 12);
+}
+
+// Combo chart: aggregates TWO metrics against the same X field (e.g. Revenue
+// as bars, Net Margin % as a line on a secondary axis). Ignores groupByField
+// — combo mode uses its two series slots for the two metrics instead.
+export function aggregateComboForChart(data, xField, metric1Id, metric2Id, sortOrder = "desc", limit = 0) {
+  if (!data || data.length === 0) return [];
+
+  const groups = {};
+  data.forEach(row => {
+    const xKey = row[xField] || "Unknown";
+    if (!groups[xKey]) groups[xKey] = [];
+    groups[xKey].push(row);
+  });
+
+  let result = Object.entries(groups).map(([name, rows]) => ({
+    name,
+    value1: computeMetric(rows, metric1Id),
+    value2: computeMetric(rows, metric2Id),
+  }));
+
+  if (xField === "MONTH") {
+    result.sort((a, b) => {
+      const ai = MONTH_ORDER.indexOf(a.name);
+      const bi = MONTH_ORDER.indexOf(b.name);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+  } else {
+    if (sortOrder === "desc") result.sort((a, b) => Math.abs(b.value1) - Math.abs(a.value1));
+    else if (sortOrder === "asc") result.sort((a, b) => Math.abs(a.value1) - Math.abs(b.value1));
+  }
+
+  if (limit > 0) result = result.slice(0, limit);
+  return result;
 }

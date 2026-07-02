@@ -1,10 +1,14 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { loadPersisted, savePersisted } from "../utils/persist";
 
 const CostContext = createContext();
+const STORAGE_KEY = "finova_cost_map";
 
 export function CostProvider({ children }) {
   // costMap: { [groupName]: { type: "fixed"|"variable"|"semi", fixedPct: number } }
-  const [costMap, setCostMap] = useState({});
+  const [costMap, setCostMap] = useState(() => loadPersisted(STORAGE_KEY, {}));
+
+  useEffect(() => { savePersisted(STORAGE_KEY, costMap); }, [costMap]);
 
   const setClassification = (group, type, fixedPct = 50) => {
     setCostMap(prev => ({ ...prev, [group]: { type, fixedPct } }));

@@ -1,10 +1,14 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { loadPersisted, savePersisted } from "../utils/persist";
 
 const CategoryContext = createContext();
+const STORAGE_KEY = "finova_category_links";
 
 // linkMap: { [salesGroup]: string[] of linked COGS groups }
 export function CategoryProvider({ children }) {
-  const [linkMap, setLinkMap] = useState({});
+  const [linkMap, setLinkMap] = useState(() => loadPersisted(STORAGE_KEY, {}));
+
+  useEffect(() => { savePersisted(STORAGE_KEY, linkMap); }, [linkMap]);
 
   const toggleLink = (salesGroup, cogsGroup) => {
     setLinkMap(prev => {

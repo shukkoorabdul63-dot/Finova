@@ -1,10 +1,14 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { loadPersisted, savePersisted } from "../utils/persist";
 
 const UnitProfileContext = createContext();
+const STORAGE_KEY = "finova_unit_profiles";
 
 // profile: { id, name, countGroups: string[], lineItems: [{id,label,addGroups:[],subtractGroups:[]}] }
 export function UnitProfileProvider({ children }) {
-  const [profiles, setProfiles] = useState([]);
+  const [profiles, setProfiles] = useState(() => loadPersisted(STORAGE_KEY, []));
+
+  useEffect(() => { savePersisted(STORAGE_KEY, profiles); }, [profiles]);
 
   const addProfile = (name, countGroups = []) => {
     const p = { id: Date.now(), name, countGroups, lineItems: [] };
@@ -16,10 +20,15 @@ export function UnitProfileProvider({ children }) {
 
   const updateProfile = (id, patch) => setProfiles(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
 
-  const addLineItem = (profileId, label = "New Item") => {
+  // Adds a fully-formed line item and returns its id synchronously, so the
+  // caller (the "add line items" modal) can track what was just added in
+  // this session without waiting on a re-render.
+  const addFullLineItem = (profileId, item) => {
+    const id = Date.now() + Math.random();
     setProfiles(prev => prev.map(p => p.id === profileId
-      ? { ...p, lineItems: [...p.lineItems, { id: Date.now(), label, addGroups: [], subtractGroups: [] }] }
+      ? { ...p, lineItems: [...p.lineItems, { id, addGroups: [], subtractGroups: [], ...item }] }
       : p));
+    return id;
   };
 
   const updateLineItem = (profileId, itemId, patch) => {
@@ -35,7 +44,7 @@ export function UnitProfileProvider({ children }) {
   };
 
   return (
-    <UnitProfileContext.Provider value={{ profiles, addProfile, removeProfile, updateProfile, addLineItem, updateLineItem, removeLineItem }}>
+    <UnitProfileContext.Provider value={{ profiles, addProfile, removeProfile, updateProfile, addFullLineItem, updateLineItem, removeLineItem }}>
       {children}
     </UnitProfileContext.Provider>
   );
